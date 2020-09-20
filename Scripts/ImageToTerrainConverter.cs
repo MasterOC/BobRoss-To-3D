@@ -11,6 +11,7 @@ public class ImageToTerrainConverter : MonoBehaviour{
     public float treeMinMargin = 1.5f;
 
     public float rockDensity = 0.01f;
+    public float rockMinMargin = 1.5f;
 
     //prefabs
     public GameObject treePrefab;
@@ -20,13 +21,10 @@ public class ImageToTerrainConverter : MonoBehaviour{
     private List<Vector2> treePixelPositions = new List<Vector2>();
     private List<Vector2> rockPixelPositions = new List<Vector2>();
 
-    //prefabLists
-    
-
 
     private Vector3 terrainSize = new Vector3(0, 0, 0);
 
-
+    //-------------------------- generate terrain ------------------------------
     void Start(){
         //set random seed
         Random.InitState(420);
@@ -59,16 +57,19 @@ public class ImageToTerrainConverter : MonoBehaviour{
         }
         
         setHeightMap();
+
+        //smooth terrain
         smoothTerrain(1);
         smoothTerrain(1);
         smoothTerrain(2);
         smoothTerrain(3);
         smoothTerrain(4);
 
+        //texture terrain
         paintTerrain();
 
-        generateTrees(treePrefab, treePixelPositions, treeDensity);
-        generateTrees(rockPrefab, rockPixelPositions, rockDensity);
+        generatePrefab(treePrefab, treePixelPositions, treeDensity, treeMinMargin);
+        generatePrefab(rockPrefab, rockPixelPositions, rockDensity, rockMinMargin);
         generateGrass();
     }
 
@@ -144,15 +145,19 @@ public class ImageToTerrainConverter : MonoBehaviour{
                 Colors terrainType = getTerrainDataFromImage(terrainMap, y * 1f/heightMap.GetLength(1), x * 1f/heightMap.GetLength(0));
 
                 if(terrainType == Colors.WASSER){
+                    //set water height to 0
                     heightMap[x, y] = 0;
                 }else{
+                    //else use perlin noise
                     float perlinScale = 0.02f;
                     float perlinMultiplier = 0.004f;
 
+                    //make mountains bigger
                     if(terrainType == Colors.BERG || terrainType == Colors.SCHNEE){
                         perlinMultiplier *= 6;
                     }
 
+                    //apply perlin noise
                     heightMap[x, y] = Mathf.PerlinNoise(x * perlinScale, y * perlinScale) * perlinMultiplier + 0.002f;
                 }
             }
@@ -165,6 +170,7 @@ public class ImageToTerrainConverter : MonoBehaviour{
         float[,] heightMap = terrain.terrainData.GetHeights(0, 0, terrain.terrainData.heightmapTexture.width, terrain.terrainData.heightmapTexture.height);
         float[,] smoothedHeightMap = terrain.terrainData.GetHeights(0, 0, terrain.terrainData.heightmapTexture.width, terrain.terrainData.heightmapTexture.height);
 
+        //get average height from pixels around pixel
         for(int x=0; x<heightMap.GetLength(0); x++){
             for(int y=0; y<heightMap.GetLength(1); y++){
                 float heightAverage = 0;
@@ -212,8 +218,8 @@ public class ImageToTerrainConverter : MonoBehaviour{
         terrain.terrainData.SetDetailLayer(0, 0, 0, map);  
     }
 
-    private void generateTrees(GameObject prefab, List<Vector2> pixelPositions, float density){
-        List<GameObject> trees = new List<GameObject>();
+    private void generatePrefab(GameObject prefab, List<Vector2> pixelPositions, float density, float margin){
+        List<GameObject> objs = new List<GameObject>();
 
         foreach(Vector2 pixelPos in pixelPositions){
 
@@ -221,12 +227,12 @@ public class ImageToTerrainConverter : MonoBehaviour{
 
                 //check for margin
                 bool isPlantable = true;
-                foreach(GameObject tree in trees){
+                foreach(GameObject obj in objs){
 
                     //calc distance
-                    float distance = Mathf.Sqrt(Mathf.Pow(Mathf.Abs(tree.transform.position.z - pixelPos.y), 2) + Mathf.Pow(Mathf.Abs(tree.transform.position.x - pixelPos.x), 2));
+                    float distance = Mathf.Sqrt(Mathf.Pow(Mathf.Abs(obj.transform.position.z - pixelPos.y), 2) + Mathf.Pow(Mathf.Abs(obj.transform.position.x - pixelPos.x), 2));
                     
-                    if(distance < treeMinMargin){
+                    if(distance < margin){
                         isPlantable = false;
                         break;
                     }
@@ -240,12 +246,14 @@ public class ImageToTerrainConverter : MonoBehaviour{
                 float height = getTerrainHeight(pixelPos.x, pixelPos.y);
                 Vector3 pos = new Vector3(pixelPos.x, height, pixelPos.y);
 
+                //Instantiate prefab & randomize rotation
                 GameObject go = Instantiate(prefab, pos, Quaternion.Euler(0, Random.value * 360, 0));
 
+                //randomize scale
                 float scaleFactor = Random.value * 0.5f - 0.2f;
                 go.transform.localScale += new Vector3(scaleFactor, scaleFactor, scaleFactor);
                 
-                trees.Add(go);
+                objs.Add(go);
             }
         }
     }
